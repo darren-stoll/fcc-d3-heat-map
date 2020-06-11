@@ -1,0 +1,251 @@
+// New code mostly based on example
+// Define base attributes
+var url = "https://raw.githubusercontent.com/FreeCodeCamp/ProjectReferenceData/master/global-temperature.json";
+
+//colors from colorbrewer
+//http://colorbrewer2.org/
+
+var colorbrewer = {
+  RdYlBu: {
+    3: ["#fc8d59","#ffffbf","#91bfdb"],
+    4: ["#d7191c","#fdae61","#abd9e9","#2c7bb6"],
+    5: ["#d7191c","#fdae61","#ffffbf","#abd9e9","#2c7bb6"],
+    6: ["#d73027","#fc8d59","#fee090","#e0f3f8","#91bfdb","#4575b4"],
+    7: ["#d73027","#fc8d59","#fee090","#ffffbf","#e0f3f8","#91bfdb","#4575b4"],
+    8: ["#d73027","#f46d43","#fdae61","#fee090","#e0f3f8","#abd9e9","#74add1","#4575b4"],
+    9: ["#d73027","#f46d43","#fdae61","#fee090","#ffffbf","#e0f3f8","#abd9e9","#74add1","#4575b4"],
+    10: ["#a50026","#d73027","#f46d43","#fdae61","#fee090","#e0f3f8","#abd9e9","#74add1","#4575b4","#313695"],
+    11: ["#a50026","#d73027","#f46d43","#fdae61","#fee090","#ffffbf","#e0f3f8","#abd9e9","#74add1","#4575b4","#313695"]
+  },
+  RdBu: {
+    3: ["#ef8a62","#f7f7f7","#67a9cf"],
+    4: ["#ca0020","#f4a582","#92c5de","#0571b0"],
+    5: ["#ca0020","#f4a582","#f7f7f7","#92c5de","#0571b0"],
+    6: ["#b2182b","#ef8a62","#fddbc7","#d1e5f0","#67a9cf","#2166ac"],
+    7: ["#b2182b","#ef8a62","#fddbc7","#f7f7f7","#d1e5f0","#67a9cf","#2166ac"],
+    8: ["#b2182b","#d6604d","#f4a582","#fddbc7","#d1e5f0","#92c5de","#4393c3","#2166ac"],
+    9: ["#b2182b","#d6604d","#f4a582","#fddbc7","#f7f7f7","#d1e5f0","#92c5de","#4393c3","#2166ac"],
+    10: ["#67001f","#b2182b","#d6604d","#f4a582","#fddbc7","#d1e5f0","#92c5de","#4393c3","#2166ac","#053061"],
+    11: ["#67001f","#b2182b","#d6604d","#f4a582","#fddbc7","#f7f7f7","#d1e5f0","#92c5de","#4393c3","#2166ac","#053061"]
+  }
+};
+
+// Extract JSON data
+d3.json(url).then( (data) => {
+  data.monthlyVariance.forEach((d) => {
+    d.month -= 1;
+  });
+  
+  // Add details of description.
+  d3.select("#description")
+    .html("1753 - 2015: base temperature 8.66&#8451;")
+  
+  // Define more base attributes
+  var w = 5 * Math.ceil(data.monthlyVariance.length/12); // 1500
+  var h = 33 * 12 // 400
+  var padding = {
+    top: 16,
+    bottom: 128,
+    left: 144,
+    right: 144
+  };
+  
+  // Create base SVG
+  var svg = d3.select("#svgcontainer")
+    .append("svg")
+    .attr("width", w + padding.left + padding.right)
+    .attr("height", h + padding.top + padding.bottom);
+  
+  // Create base tooltip
+  var tooltip = d3.select("#svgcontainer")
+    .append("div")
+    .attr("id", "tooltip")
+    .style("opacity", 0);
+  
+  // Define the axes
+  var xScale = d3.scaleBand()
+    .domain(data.monthlyVariance.map((d) => {return d.year}))
+    .range([0, w]);
+  
+  var yScale = d3.scaleBand()
+    .domain([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+    //.domain(["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
+    .range([0, h]);
+  
+  var xAxis = d3.axisBottom(xScale)
+    .tickValues(xScale.domain().filter((year) => 
+      {return year % 10 === 0})
+    );
+  
+  var yAxis = d3.axisLeft(yScale)
+    .tickFormat((month) => {
+      var date = new Date(0);
+      date.setUTCMonth(month);
+      return d3.utcFormat("%B")(date);
+    })
+
+  // Add the axes to the SVG
+  svg.append("g")
+    .attr("id", "x-axis")
+    .attr("transform", "translate(" + padding.left + ", " + h + ")")
+    .call(xAxis);
+  
+  svg.append("g")
+    .attr("id", "y-axis")
+    .attr("transform", "translate(" + (padding.left) + ",0)")
+    .call(yAxis);
+  
+  // Create the legend
+  //Follow example from https://bl.ocks.org/mbostock/4573883 to draw the legend
+  
+  // Set base attributes for the legend
+  var legendColors = colorbrewer.RdYlBu[11].reverse();
+  var legendWidth = 400;
+  var legendHeight = 300 / legendColors.length;
+  
+  var variance = data.monthlyVariance.map((d) => d.variance);
+  var minTemp = data.baseTemperature + d3.min(variance);
+  var maxTemp = data.baseTemperature + d3.max(variance);
+  
+  // Legend colors scale
+  var legendThreshold = d3.scaleThreshold()
+    .domain(((min, max, count) => {
+      var array = [];
+      var step = (max-min)/count;
+      var base = min;
+      for (let i = 1; i < count; i++) {
+        array.push(base + i*step);
+      }
+      return array;
+    })(minTemp, maxTemp, legendColors.length))
+    .range(legendColors);
+  
+  // Legend numbers scale
+  var legendX = d3.scaleLinear()
+    .domain([minTemp, maxTemp])
+    .range([0, legendWidth]);
+  
+  // Legend colors axis
+  var legendXAxis = d3.axisBottom(legendX)
+    .tickSize(10, 0)
+    .tickValues(legendThreshold.domain())
+    .tickFormat(d3.format(".1f"));
+    
+  // Legend canvas
+  var legend = svg.append("g")
+    .attr("id", "legend")
+    .attr("transform", "translate(" + padding.left + "," + (padding.top + h + padding.bottom - 2*legendHeight) + ")");
+  
+  // Legend color rectangles
+  legend.append("g")
+    .selectAll("rect")
+    .data(legendThreshold.range().map((color) => {
+      var d = legendThreshold.invertExtent(color);
+      if (d[0] == null) d[0] = legendX.domain()[0];
+      if (d[1] == null) d[1] = legendX.domain()[1];
+      return d;
+    }))
+    .enter()
+    .append("rect")
+    .style("fill", (d) => legendThreshold(d[0]))
+    .attr("x", (d) => legendX(d[0]))
+    .attr("y", -padding.top)
+    .attr("width", (d) => {return legendX(d[1]) - legendX(d[0])})
+    .attr("height", legendHeight);
+  
+  //Call legend numbers
+  legend.append("g")
+    .attr("transform", "translate(0, " + (padding.top - 5) + ")")
+    .call(legendXAxis);
+    
+  // End of Legend
+  
+  // Heat map data
+  svg.append("g")
+    .attr("class", "map")
+    .attr("transform", "translate(" + (padding.left + 1) + ", 0)")
+    .selectAll("rect")
+    .data(data.monthlyVariance)
+    .enter()
+    .append("rect")
+    .attr("class", "cell")
+    .attr("data-month", (d) => d.month)
+    .attr("data-year", (d) => d.year)
+    .attr("data-temp", (d) => data.baseTemperature + d.variance)
+    .attr("x", (d) => xScale(d.year))
+    .attr("y", (d) => yScale(d.month))
+    .attr("width", (d) => xScale.bandwidth(d.year))
+    .attr("height", (d) => yScale.bandwidth(d.month))
+    .attr("fill", (d) => legendThreshold(data.baseTemperature + d.variance))
+    // Show tooltip for mouseover
+    .on("mouseover", (d) => {
+      tooltip.style("opacity", 0.9)
+        .attr("data-year", d.year)
+        .html("Year: " + d.year + "<br>Month: " + d.month + "<br>Temp: " + (data.baseTemperature + d.variance).toFixed(3))
+        .style("left", ((d3.event.pageX) + 15) + "px")
+        .style("top", ((d3.event.pageY) - 5) + "px")
+    })
+    .on("mouseout", (d) => tooltip.style("opacity", 0))
+});
+
+  
+
+/* Old Code that didn't work because I can't figure out D3 yet.
+// Define the base attributes
+var url = "https://raw.githubusercontent.com/freeCodeCamp/ProjectReferenceData/master/global-temperature.json";
+var w = 800, h = 400;
+
+// Define axes
+var xScale = d3.scaleTime()
+  .range([0, w]);
+
+var yScale = d3.scaleLinear()
+  .range([0, h]);
+
+var xAxis = d3.axisBottom(xScale);
+
+var yAxis = d3.axisLeft(yScale);
+
+// Create base tooltip
+var tooltip = d3.select("svgcontainer")
+  .append("div")
+  .attr("class", "tooltip")
+  .attr("id", "tooltip")
+  .style("opacity", 0);
+
+// Create base SVG
+var svg = d3.select("#svgContainer")
+  .append("svg")
+  .attr("width", w)
+  .attr("height", h);
+
+// Extract the data and use it for building the heat map
+d3.json(url).then((data) => {
+  // Convert month and year to Date objects
+  data.monthlyVariance.forEach((d) => {
+    d.month -= 1;
+  });
+  
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  
+  
+  // Establish the domains
+  xScale.domain([d3.min(data.monthlyVariance, (d) => {return d.year}), d3.max(data.monthlyVariance, (d) => {return d.year})]);
+  
+  yScale.domain([0,1,2,3,4,5,6,7,8,9,10,11]);
+  
+  
+  // Put the axes on the page
+  svg.append("g")
+    .attr("id", "x-axis")
+    .attr("transform", "translate(0, " + (h - 0) + ")")
+    .call(xAxis);
+  
+  svg.append("g")
+    .attr("id", "y-axis")
+    .attr("transform", "translate(" + w + ",0)")
+    .call(yAxis);
+  
+  
+});
+*/

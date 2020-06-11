@@ -1,0 +1,27 @@
+body {
+  margin: 0 auto;
+  text-align: center;
+}
+
+#title {
+  font-size: 24px;
+  
+}
+
+#description {
+  font-size: 18px;
+}
+
+.tooltip {
+  background: white;
+  position: absolute;
+}
+
+#y-axis {
+  stroke-width: 1;
+}
+
+#tooltip {
+  position: absolute;
+  background: white;
+}
